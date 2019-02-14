@@ -5,35 +5,13 @@
 #include <BLEServer.h>
 #include <BLE2902.h>
 
-#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
-#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-
-BLEServer* pServer = NULL;
-BLECharacteristic *pCharacteristic = NULL;
-bool deviceConnected = false;
-
-class MyServerCallbacks: public BLEServerCallbacks{
-  void onConnect(BLEServer* pServer){
-      deviceConnected = true;
-    };
-
-  void onDisconnect(BLEServer* pServer){
-      deviceConnected = false;
-    }
-  };
-
-class MyCallbacks: public BLECharacteristicCallbacks{
-  void onWrite(BLECharacteristic *pCharacteristic){
-      std::string rxValue = pCharacteristic -> getValue();
-      if(rxValue.length() > 0)
-      {
-        Serial.println("*********");
-        Serial.print("Received Value: ");
-        Serial.println(rxValue);
-      }
-    }
-  };
+#define SERVICE_UUID                  "32c64438-23c1-40e3-8a85-2dddc120e432" // FlowMeter service UUID
+#define CHARACTERISTIC_UUID_COUNTER   "3edde8fa-1ab3-4162-b53f-42884f1f6714" // Pulse Counter characteristic
+#define CHARACTERISTIC_UUID_BATTERY   "ae994543-4583-4cd4-aa97-692ca9bfa711" // Battery level characteristic
+#define CHARACTERISTIC_UUID_VALVE     "d752ffc7-0123-4932-92a6-920bc7852bcd" // Valve status characteristic
+#define CHARACTERISTIC_UUID_DEVICEID  "e0583abd-28a7-4c2a-8b7b-f156e2394ec4" //Device ID characteristic
+#define CHARACTERISTIC_UUID_LOCATION  "af815952-d651-496a-9942-7e40684ff2ed" //Current location characteristic
+#define CHARACTERISTIC_UUID_LOG       "c85a30a7-52d1-4bd7-9811-a1fa8d4c303b" //Reading history characteristic
 
 void IRAM_ATTR isr();
 const byte intPin = 15;
@@ -43,6 +21,80 @@ const byte rs = 5, en = 17, d4 = 16, d5 = 4, d6 = 0, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 const byte voltagePin = 36;
+
+BLEServer* pServer = NULL;
+BLEService *pService = NULL;
+BLECharacteristic *pCounter = NULL;
+BLECharacteristic *pBattery = NULL;
+BLECharacteristic *pValve = NULL;
+BLECharacteristic *pDeviceId = NULL;
+BLECharacteristic *pLocation = NULL;
+BLECharacteristic *pLog = NULL;
+bool deviceConnected = false;
+
+class MyServerCallbacks: public BLEServerCallbacks
+{
+  void onConnect(BLEServer* pServer)
+  {
+      deviceConnected = true;
+  };
+
+  void onDisconnect(BLEServer* pServer)
+  {
+      deviceConnected = false;
+  }
+};
+
+class MyCounterCallbacks: public BLECharacteristicCallbacks
+{
+  void onRead(BLECharacteristic *pCharacteristic)
+  {
+    String currentCount = String(pulseCounter);
+    pCharacteristic -> setValue(currentCount);
+    Serial.print("Pulsos enviados = ")
+    Serial.println(currentCount);
+  }
+};
+
+class MyBatteryCallbacks: public BLECharacteristicCallbacks
+{
+  void onRead(BLECharacteristic *pCharacteristic)
+  {
+      int currentVoltage = analogRead(voltagePin);
+      String voltage = String(currentVoltage);
+      pCharacteristic -> setValue(voltage);
+  }
+};
+
+class MyValveCallbacks: public BLECharacteristic 
+{
+  void onRead(BLECharacteristic *pCharacteristic)
+  {
+    //Leer estado actual
+    pCharacteristic -> setValue("Estado");
+  }
+
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    String newState = pCharacteristic -> getValue();
+    //Actualizar estado actual  
+  }
+};
+
+class MyLogCallbacks(BLECharacteristic *pCharacteristic)
+{
+  void onRead(BLECharacteristic *pCharacteristic)
+  {
+    //Leer de ROM
+    pCharacteristic -> setValue("Historial de lecturas");
+  }
+
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    String newReading = pCharacteristic -> getValue();
+    //Guardarlo en ROM
+  }
+};
 
 void setup() {
   Serial.begin(115200);
@@ -56,26 +108,61 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("Hello world!");
 
-  //Configurar BLE
+  //Inicializar el BLE
   BLEDevice::init("ESP32");
+
+  //Crear el servidor
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  BLEService *pService = pServer -> createService(SERVICE_UUID);
-  pCharacteristic = pService -> createCharacteristic(
-    CHARACTERISTIC_UUID_TX,
-    BLECharacteristic::PROPERTY_NOTIFY);
+  //Crear un servicio
+  pService = pServer -> createService(SERVICE_UUID);
 
-  pCharacteristic -> addDescriptor(new BLE2902());
+  //Crear las caracteristicas del servicio
+  pCounter = pService -> createCharacteristic{
+                                              CHARACTERISTIC_UUID_COUNTER,
+                                              BLECharacteristic::PROPERTY_READ
+                                              };
+  pCounter -> setCallbacks(new MyCounterCallbacks());
 
-  pCharacteristic = pService -> createCharacteristic(
-    CHARACTERISTIC_UUID_RX,
-    BLECharacteristic::PROPERTY_WRITE);
+  pBattery = pService -> createCharacteristic{
+                                              CHARACTERISTIC_UUID_BATTERY,
+                                              BLECharacteristic::PROPERTY_READ
+                                              };
+  pBattery -> setCallbacks(new MyBatteryCallbacks());
 
-  pCharacteristic->setCallbacks(new MyCallbacks());
+  pValve = pService -> createCharacteristic{
+                                            CHARACTERISTIC_UUID_VALVE,
+                                            BLECharacteristic::PROPERTY_READ |
+                                            BLECharacteristic::PROPERTY_WRITE
+                                            };
+  pValve -> setCallbacks(new MyValveCallbacks());
 
+  pDeviceId = pService -> createCharacteristic{
+                                                CHARACTERISTIC_UUID_DEVICEID,
+                                                BLECharacteristic::PROPERTY_READ
+                                                };
+  pDeviceId -> setValue("Soy el dispositivo 1");
+
+  pLocation = pService -> createCharacteristic{
+                                                CHARACTERISTIC_UUID_LOCATION,
+                                                BLECharacteristic::PROPERTY_READ |
+                                                BLECharacteristic::PROPERTY_WRITE
+                                                };
+  pLocation -> setValue("Lat:123456, Long:789456");
+
+  pLog = pService -> createCharacteristic{
+                                          CHARACTERISTIC_UUID_LOG,
+                                          BLECharacteristic::PROPERTY_READ |
+                                          BLECharacteristic::PROPERTY_WRITE
+                                          };
+  pLog -> setCallbacks(new MyLogCallbacks());
+
+  //Empezar el servicio
   pService -> start();
 
+  //Hacerse visible a los clientes
+  //Opcional, si ya se conoce la direccion no hace falta.
   pServer -> getAdvertising() -> start();
 
   Serial.println("Waiting a client connection to notify...");
@@ -85,19 +172,7 @@ void loop() {
   // mostrar el numero de pulsos
   lcd.setCursor(0, 1);
   lcd.print(pulseCounter);
-
-  if(deviceConnected){
-    int txValue = analogRead(voltagePin);
-    char txString[8];
-    dtostrf(txValue, 1, 2, txString);
-
-    pCharacteristic -> setValue(txString);
-    pCharacteristic -> notify();
-    Serial.print("*** Sent Value: ");
-    Serial.print(txString);
-    Serial.println(" ***");
-    }
-    delay(1000);
+  delay(1000);
 }
 
 void IRAM_ATTR isr(){
