@@ -9,9 +9,9 @@
 #define CHARACTERISTIC_UUID_COUNTER   "3edde8fa-1ab3-4162-b53f-42884f1f6714" // Pulse Counter characteristic
 #define CHARACTERISTIC_UUID_BATTERY   "ae994543-4583-4cd4-aa97-692ca9bfa711" // Battery level characteristic
 #define CHARACTERISTIC_UUID_VALVE     "d752ffc7-0123-4932-92a6-920bc7852bcd" // Valve status characteristic
-#define CHARACTERISTIC_UUID_DEVICEID  "e0583abd-28a7-4c2a-8b7b-f156e2394ec4" //Device ID characteristic
-#define CHARACTERISTIC_UUID_LOCATION  "af815952-d651-496a-9942-7e40684ff2ed" //Current location characteristic
-#define CHARACTERISTIC_UUID_LOG       "c85a30a7-52d1-4bd7-9811-a1fa8d4c303b" //Reading history characteristic
+#define CHARACTERISTIC_UUID_DEVICENUMBER  "e0583abd-28a7-4c2a-8b7b-f156e2394ec4" //Device number characteristic
+#define CHARACTERISTIC_UUID_BRAND  "af815952-d651-496a-9942-7e40684ff2ed"     //Brand characteristic
+
 
 void IRAM_ATTR isr();
 const byte intPin = 15;
@@ -27,9 +27,8 @@ BLEService *pService = NULL;
 BLECharacteristic *pCounter = NULL;
 BLECharacteristic *pBattery = NULL;
 BLECharacteristic *pValve = NULL;
-BLECharacteristic *pDeviceId = NULL;
-BLECharacteristic *pLocation = NULL;
-BLECharacteristic *pLog = NULL;
+BLECharacteristic *pDeviceNumber = NULL;
+BLECharacteristic *pBrand = NULL;
 bool deviceConnected = false;
 
 class MyServerCallbacks: public BLEServerCallbacks
@@ -49,10 +48,11 @@ class MyCounterCallbacks: public BLECharacteristicCallbacks
 {
   void onRead(BLECharacteristic *pCharacteristic)
   {
-    String currentCount = String(pulseCounter);
-    pCharacteristic -> setValue(currentCount);
-    Serial.print("Pulsos enviados = ")
-    Serial.println(currentCount);
+    char count[8];
+    dtostrf(pulseCounter, 1, 2, count);
+    pCharacteristic -> setValue(count);
+    Serial.print("Pulsos enviados = ");
+    Serial.println(count);
   }
 };
 
@@ -61,12 +61,13 @@ class MyBatteryCallbacks: public BLECharacteristicCallbacks
   void onRead(BLECharacteristic *pCharacteristic)
   {
       int currentVoltage = analogRead(voltagePin);
-      String voltage = String(currentVoltage);
+      char voltage[8];
+      dtostrf(currentVoltage, 1, 2, voltage);
       pCharacteristic -> setValue(voltage);
   }
 };
 
-class MyValveCallbacks: public BLECharacteristic 
+class MyValveCallbacks: public BLECharacteristicCallbacks 
 {
   void onRead(BLECharacteristic *pCharacteristic)
   {
@@ -76,23 +77,8 @@ class MyValveCallbacks: public BLECharacteristic
 
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-    String newState = pCharacteristic -> getValue();
+    std::string newState = pCharacteristic -> getValue();
     //Actualizar estado actual  
-  }
-};
-
-class MyLogCallbacks(BLECharacteristic *pCharacteristic)
-{
-  void onRead(BLECharacteristic *pCharacteristic)
-  {
-    //Leer de ROM
-    pCharacteristic -> setValue("Historial de lecturas");
-  }
-
-  void onWrite(BLECharacteristic *pCharacteristic)
-  {
-    String newReading = pCharacteristic -> getValue();
-    //Guardarlo en ROM
   }
 };
 
@@ -119,44 +105,37 @@ void setup() {
   pService = pServer -> createService(SERVICE_UUID);
 
   //Crear las caracteristicas del servicio
-  pCounter = pService -> createCharacteristic{
+  pCounter = pService -> createCharacteristic(
                                               CHARACTERISTIC_UUID_COUNTER,
                                               BLECharacteristic::PROPERTY_READ
-                                              };
+                                              );
   pCounter -> setCallbacks(new MyCounterCallbacks());
 
-  pBattery = pService -> createCharacteristic{
+  pBattery = pService -> createCharacteristic(
                                               CHARACTERISTIC_UUID_BATTERY,
                                               BLECharacteristic::PROPERTY_READ
-                                              };
+                                              );
   pBattery -> setCallbacks(new MyBatteryCallbacks());
 
-  pValve = pService -> createCharacteristic{
+  pValve = pService -> createCharacteristic(
                                             CHARACTERISTIC_UUID_VALVE,
                                             BLECharacteristic::PROPERTY_READ |
                                             BLECharacteristic::PROPERTY_WRITE
-                                            };
+                                            );
   pValve -> setCallbacks(new MyValveCallbacks());
 
-  pDeviceId = pService -> createCharacteristic{
-                                                CHARACTERISTIC_UUID_DEVICEID,
+  pDeviceNumber = pService -> createCharacteristic(
+                                                CHARACTERISTIC_UUID_DEVICENUMBER,
                                                 BLECharacteristic::PROPERTY_READ
-                                                };
-  pDeviceId -> setValue("Soy el dispositivo 1");
+                                                );
+  pDeviceNumber -> setValue("130894");
 
-  pLocation = pService -> createCharacteristic{
-                                                CHARACTERISTIC_UUID_LOCATION,
+  pBrand = pService -> createCharacteristic(
+                                                CHARACTERISTIC_UUID_BRAND,
                                                 BLECharacteristic::PROPERTY_READ |
                                                 BLECharacteristic::PROPERTY_WRITE
-                                                };
-  pLocation -> setValue("Lat:123456, Long:789456");
-
-  pLog = pService -> createCharacteristic{
-                                          CHARACTERISTIC_UUID_LOG,
-                                          BLECharacteristic::PROPERTY_READ |
-                                          BLECharacteristic::PROPERTY_WRITE
-                                          };
-  pLog -> setCallbacks(new MyLogCallbacks());
+                                                );
+  pBrand -> setValue("BLU TOWER");
 
   //Empezar el servicio
   pService -> start();
