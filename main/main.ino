@@ -22,6 +22,10 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 const byte voltagePin = 36;
 
+const byte servoPin = 19;
+const byte servoChannel = 1;
+int dutyCycle = 255;
+
 BLEServer* pServer = NULL;
 BLEService *pService = NULL;
 BLECharacteristic *pCounter = NULL;
@@ -94,6 +98,10 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("Hello world!");
 
+  //Inicializar PWM
+  ledcSetup(1,50,8); //(channel, freq, resolution)
+  ledcAttachPin(servoPin, 1);
+
   //Inicializar el BLE
   BLEDevice::init("ESP32");
 
@@ -151,6 +159,7 @@ void loop() {
   // mostrar el numero de pulsos
   lcd.setCursor(0, 1);
   lcd.print(pulseCounter);
+  ledcWrite(servoChannel,dutyCycle);
   delay(1000);
 }
 
