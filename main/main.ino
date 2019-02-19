@@ -12,6 +12,8 @@
 #define CHARACTERISTIC_UUID_DEVICENUMBER  "e0583abd-28a7-4c2a-8b7b-f156e2394ec4" //Device number characteristic
 #define CHARACTERISTIC_UUID_BRAND  "af815952-d651-496a-9942-7e40684ff2ed"     //Brand characteristic
 
+const char *OPEN_COM = "Abierto";
+const char *CLOSE_COM = "Cerrado";
 
 void IRAM_ATTR isr();
 const byte intPin = 15;
@@ -52,8 +54,8 @@ class MyCounterCallbacks: public BLECharacteristicCallbacks
 {
   void onRead(BLECharacteristic *pCharacteristic)
   {
-    char count[8];
-    dtostrf(pulseCounter, 1, 2, count);
+    char count[10];
+    dtostrf(pulseCounter, 10, 2, count);
     pCharacteristic -> setValue(count);
     Serial.print("Pulsos enviados = ");
     Serial.println(count);
@@ -65,8 +67,8 @@ class MyBatteryCallbacks: public BLECharacteristicCallbacks
   void onRead(BLECharacteristic *pCharacteristic)
   {
       int currentVoltage = analogRead(voltagePin);
-      char voltage[8];
-      dtostrf(currentVoltage, 1, 2, voltage);
+      char voltage[10];
+      dtostrf(currentVoltage, 10, 2, voltage);
       pCharacteristic -> setValue(voltage);
   }
 };
@@ -76,13 +78,32 @@ class MyValveCallbacks: public BLECharacteristicCallbacks
   void onRead(BLECharacteristic *pCharacteristic)
   {
     //Leer estado actual
-    pCharacteristic -> setValue("Estado");
+    if(dutyCycle == 255)
+    {
+      pCharacteristic -> setValue("Abierta");
+    }else if(dutyCycle == 0)
+    {
+      pCharacteristic -> setValue("Cerrada");
+    }
+    
   }
 
   void onWrite(BLECharacteristic *pCharacteristic)
   {
-    std::string newState = pCharacteristic -> getValue();
-    //Actualizar estado actual  
+    String newState = pCharacteristic -> getValue().c_str();
+    //Actualizar estado actual
+    if(newState.equals(OPEN_COM))
+    {
+      dutyCycle = 255;
+      ledcWrite(servoChannel,dutyCycle);
+    }else if(newState.equals(CLOSE_COM))
+    {
+      dutyCycle = 0;
+      ledcWrite(servoChannel,dutyCycle);  
+    }else
+    {
+      Serial.println("Comando de válvula inválido");  
+    }  
   }
 };
 
@@ -101,6 +122,7 @@ void setup() {
   //Inicializar PWM
   ledcSetup(1,50,8); //(channel, freq, resolution)
   ledcAttachPin(servoPin, 1);
+  ledcWrite(servoChannel,dutyCycle);
 
   //Inicializar el BLE
   BLEDevice::init("ESP32");
@@ -159,7 +181,6 @@ void loop() {
   // mostrar el numero de pulsos
   lcd.setCursor(0, 1);
   lcd.print(pulseCounter);
-  ledcWrite(servoChannel,dutyCycle);
   delay(1000);
 }
 
