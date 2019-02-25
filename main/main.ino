@@ -16,10 +16,10 @@ const char *OPEN_COM = "Abierto";
 const char *CLOSE_COM = "Cerrado";
 
 void IRAM_ATTR isr();
-const byte intPin = 15;
+const byte intPin = 18;
 volatile int pulseCounter = 0;
 
-const byte rs = 5, en = 17, d4 = 16, d5 = 4, d6 = 0, d7 = 2;
+const byte rs = 5, en = 17, d4 = 16, d5 = 4, d6 = 2, d7 = 15;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
 const byte voltagePin = 36;
@@ -54,11 +54,26 @@ class MyCounterCallbacks: public BLECharacteristicCallbacks
 {
   void onRead(BLECharacteristic *pCharacteristic)
   {
-    char count[10];
-    dtostrf(pulseCounter, 10, 2, count);
-    pCharacteristic -> setValue(count);
+    char count[16] = "";
+    itoa(pulseCounter, count, 10);
     Serial.print("Pulsos enviados = ");
     Serial.println(count);
+    pCharacteristic -> setValue(count);
+  }
+
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    String newCounter = pCharacteristic -> getValue().c_str();
+    int count = newCounter.toInt();
+    if(!isnan(count))
+    {
+      pulseCounter = count;
+      Serial.println("Conteo actualizado");
+    }
+    else
+    {
+      Serial.println("Dato no válido");
+    }
   }
 };
 
@@ -67,8 +82,8 @@ class MyBatteryCallbacks: public BLECharacteristicCallbacks
   void onRead(BLECharacteristic *pCharacteristic)
   {
       int currentVoltage = analogRead(voltagePin);
-      char voltage[10];
-      dtostrf(currentVoltage, 10, 2, voltage);
+      char voltage[16] = "";
+      itoa(currentVoltage, voltage, 10);
       pCharacteristic -> setValue(voltage);
   }
 };
@@ -117,7 +132,7 @@ void setup() {
 
   //Inicializar LCD
   lcd.begin(16, 2);
-  lcd.print("Hello world!");
+  lcd.print("Medidor 1234");
 
   //Inicializar PWM
   ledcSetup(1,50,8); //(channel, freq, resolution)
@@ -137,9 +152,12 @@ void setup() {
   //Crear las caracteristicas del servicio
   pCounter = pService -> createCharacteristic(
                                               CHARACTERISTIC_UUID_COUNTER,
-                                              BLECharacteristic::PROPERTY_READ
+                                              BLECharacteristic::PROPERTY_READ |
+                                              BLECharacteristic::PROPERTY_WRITE |
+                                              BLECharacteristic::PROPERTY_NOTIFY
                                               );
   pCounter -> setCallbacks(new MyCounterCallbacks());
+  pCounter -> addDescriptor(new BLE2902());
 
   pBattery = pService -> createCharacteristic(
                                               CHARACTERISTIC_UUID_BATTERY,
@@ -182,6 +200,17 @@ void loop() {
   lcd.setCursor(0, 1);
   lcd.print(pulseCounter);
   delay(1000);
+  if(deviceConnected)
+  {
+    char count[16] = "";
+    itoa(pulseCounter, count, 10);
+    pCounter -> setValue(count);
+    pCounter -> notify();
+    Serial.println("Dispositivo conectado");
+  }else
+  {
+    Serial.println("Dispositivo desconectado");
+  }
 }
 
 void IRAM_ATTR isr(){
