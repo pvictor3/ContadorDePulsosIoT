@@ -26,7 +26,7 @@ const byte voltagePin = 36;
 
 const byte servoPin = 19;
 const byte servoChannel = 1;
-int dutyCycle = 255;
+int dutyCycle = 25;
 
 BLEServer* pServer = NULL;
 BLEService *pService = NULL;
@@ -109,11 +109,11 @@ class MyValveCallbacks: public BLECharacteristicCallbacks
     //Actualizar estado actual
     if(newState.equals(OPEN_COM))
     {
-      dutyCycle = 255;
+      dutyCycle = 25;
       ledcWrite(servoChannel,dutyCycle);
     }else if(newState.equals(CLOSE_COM))
     {
-      dutyCycle = 0;
+      dutyCycle = 13;
       ledcWrite(servoChannel,dutyCycle);  
     }else
     {
