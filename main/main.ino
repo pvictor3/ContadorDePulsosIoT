@@ -26,7 +26,7 @@ const byte voltagePin = 36;
 
 const byte servoPin = 19;
 const byte servoChannel = 1;
-int dutyCycle = 255;
+int dutyCycle = 25;
 
 BLEServer* pServer = NULL;
 BLEService *pService = NULL;
@@ -93,10 +93,10 @@ class MyValveCallbacks: public BLECharacteristicCallbacks
   void onRead(BLECharacteristic *pCharacteristic)
   {
     //Leer estado actual
-    if(dutyCycle == 255)
+    if(dutyCycle == 25)
     {
       pCharacteristic -> setValue("Abierta");
-    }else if(dutyCycle == 0)
+    }else if(dutyCycle == 13)
     {
       pCharacteristic -> setValue("Cerrada");
     }
@@ -109,11 +109,11 @@ class MyValveCallbacks: public BLECharacteristicCallbacks
     //Actualizar estado actual
     if(newState.equals(OPEN_COM))
     {
-      dutyCycle = 255;
+      dutyCycle = 25;
       ledcWrite(servoChannel,dutyCycle);
     }else if(newState.equals(CLOSE_COM))
     {
-      dutyCycle = 0;
+      dutyCycle = 13;
       ledcWrite(servoChannel,dutyCycle);  
     }else
     {
@@ -132,7 +132,10 @@ void setup() {
 
   //Inicializar LCD
   lcd.begin(16, 2);
-  lcd.print("Medidor 1234");
+  lcd.setCursor(1,0);
+  lcd.print("Medidor 1308");
+  lcd.setCursor(8,1);
+  lcd.print("m3");
 
   //Inicializar PWM
   ledcSetup(1,50,8); //(channel, freq, resolution)
