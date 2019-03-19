@@ -132,9 +132,9 @@ void setup() {
 
   //Inicializar LCD
   lcd.begin(16, 2);
-  lcd.setCursor(1,0);
-  lcd.print("Medidor 1308");
-  lcd.setCursor(8,1);
+  lcd.setCursor(2,0);
+  lcd.print("Medidor #1308");
+  lcd.setCursor(5,1);
   lcd.print("m3");
 
   //Inicializar PWM
@@ -174,7 +174,7 @@ void setup() {
                                             BLECharacteristic::PROPERTY_WRITE
                                             );
   pValve -> setCallbacks(new MyValveCallbacks());
-
+  pValve -> setValue("Abierta");
   pDeviceNumber = pService -> createCharacteristic(
                                                 CHARACTERISTIC_UUID_DEVICENUMBER,
                                                 BLECharacteristic::PROPERTY_READ
